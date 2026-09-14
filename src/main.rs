@@ -1,4 +1,150 @@
-use std::fmt::{Display, Write};
+#![feature(integer_casts)]
+use std::{
+    fmt::{Display, Write},
+    ops::{AddAssign, DivAssign, Rem},
+};
+
+fn main() {
+    let mut base_26 = NewBase::<char>::new();
+    base_26 += 'a'..='z';
+    for char in base_26.0.iter() {
+        println!("{char}");
+    }
+
+    let display = base_26.to(10);
+    println!("{display}");
+}
+
+/// https://cs.stackexchange.com/questions/10318/the-math-behind-converting-from-any-base-to-any-base-without-going-through-base
+fn to_digits(mut n: u32, b: u32) -> Vec<u32> {
+    let mut digits = vec![];
+
+    while n > 0 {
+        digits.insert(0, n % b);
+        n /= b;
+    }
+
+    digits
+}
+fn from_digits(digits: &[u32], b: u32) -> u32 {
+    let mut n = 0;
+
+    for d in digits {
+        n = b * n + d;
+    }
+
+    n
+}
+
+#[derive(Clone, Copy)]
+struct DisplayInBase<'a, N: Number, T> {
+    base: &'a NewBase<T>,
+    value: N,
+}
+impl<N: Number, T: Display + Clone> Display for DisplayInBase<'_, N, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut number = self.value.clone();
+        let mut digits = vec![];
+        let base = N::rhs_from_usize(self.base.0.len());
+
+        while number.not_zero() {
+            let digit = number.remainder(&base);
+            number /= &base;
+            digits.insert(0, self.base.0[digit.to_usize()].clone());
+        }
+
+        for digit in digits {
+            write!(f, "{digit}")?;
+        }
+
+        Ok(())
+    }
+}
+
+struct NewBase<T = char>(Vec<T>);
+impl<T> NewBase<T> {
+    fn new() -> Self {
+        Self(vec![])
+    }
+
+    fn to<N: Number>(&self, value: N) -> DisplayInBase<'_, N, T> {
+        DisplayInBase { base: self, value }
+    }
+}
+impl AddAssign<core::ops::RangeInclusive<char>> for NewBase<char> {
+    fn add_assign(&mut self, rhs: core::ops::RangeInclusive<char>) {
+        self.0.extend(rhs);
+    }
+}
+impl AddAssign<char> for NewBase<char> {
+    fn add_assign(&mut self, rhs: char) {
+        self.0.push(rhs);
+    }
+}
+
+trait Number: Sized + Clone + for<'a> DivAssign<&'a Self::Rhs> {
+    type Rhs: Clone;
+    fn rhs_from_usize(value: usize) -> Self::Rhs;
+
+    fn not_zero(&self) -> bool;
+    fn to_usize(&self) -> usize;
+
+    fn remainder(&self, rhs: &Self::Rhs) -> Self;
+}
+impl Number for u32 {
+    type Rhs = Self;
+    fn rhs_from_usize(value: usize) -> Self::Rhs {
+        value.strict_cast()
+    }
+
+    fn not_zero(&self) -> bool {
+        *self != 0
+    }
+    fn to_usize(&self) -> usize {
+        self.strict_cast()
+    }
+
+    fn remainder(&self, rhs: &Self::Rhs) -> Self {
+        self.rem(rhs)
+    }
+}
+
+fn base_alphabet<T: Number>(value: &str) -> T {
+    let base: [char; 26] =
+        core::array::from_fn(|index| char::from_u32('a' as u32 + index as u32).unwrap());
+    todo!()
+}
+
+mod base {
+    use std::fmt::Display;
+
+    struct Base<const DIGITS_LENGTH: usize> {
+        digits: [(&'static str, i8); DIGITS_LENGTH],
+    }
+
+    struct Integer<const DIGITS_LENGTH: usize> {
+        base: Base<DIGITS_LENGTH>,
+        value: i32,
+    }
+
+    impl<const DIGITS_LENGTH: usize> Display for Integer<DIGITS_LENGTH> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            //f.
+            //while n > 0 {
+            //digits.insert(0, n % b);
+            //n /= b;
+            //}
+
+            //digits
+            todo!()
+        }
+    }
+}
+
+struct Base {
+    base: u8,
+    symbols: Vec<(&'static str, i8)>,
+}
 
 mod value {
     pub const Z: (&str, i8) = ("Z", 22);
@@ -124,7 +270,7 @@ fn inner<T: Digits>(digits: &T, remaining: u8) {
     }
 }
 
-fn main() {
+fn main_old() {
     // blah([
     //     ("0", 0),
     //     ("1", -1),
@@ -187,7 +333,7 @@ fn main() {
             *value = number.display_in_base.to_owned();
         }
     });
-    println!("{grid}");
+    //println!("{grid}");
 
     // for_each_number_in_base::<2>(&base_10, |number| {
     //     println!(
@@ -195,6 +341,13 @@ fn main() {
     //         number.display_in_base, number.in_base_10
     //     )
     // });
+
+    //println!("{:?}", to_digits(52, 10));
+    //println!("{:?}", from_digits(&[0, 0, 1], 2));
+
+    for i in 0..10 {
+        println!("{:?}", to_digits(i, 2));
+    }
 }
 
 struct Grid<const CAPACITY: usize>([String; CAPACITY]);
