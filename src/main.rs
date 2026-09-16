@@ -1,8 +1,14 @@
 #![feature(integer_casts)]
 use std::{
     fmt::{Display, Write},
-    ops::{AddAssign, DivAssign, Rem},
+    ops::AddAssign,
 };
+
+use num_bigint::BigUint;
+
+use crate::number_trait::Number;
+
+mod number_trait;
 
 fn main() {
     let mut base_26 = NewBase::<char>::new();
@@ -11,7 +17,10 @@ fn main() {
         println!("{char}");
     }
 
-    let display = base_26.to(10);
+    let mut value: BigUint = base_26.from("somethingwaytoolong");
+    value += 1_u8;
+
+    let display = base_26.to(value);
     println!("{display}");
 }
 
@@ -48,9 +57,9 @@ impl<N: Number, T: Display + Clone> Display for DisplayInBase<'_, N, T> {
         let base = N::rhs_from_usize(self.base.0.len());
 
         while number.not_zero() {
-            let digit = number.remainder(&base);
-            number /= &base;
-            digits.insert(0, self.base.0[digit.to_usize()].clone());
+            let digit = number.remainder(base);
+            number /= base;
+            digits.insert(0, self.base.0[N::rhs_to_usize(digit)].clone());
         }
 
         for digit in digits {
@@ -71,6 +80,28 @@ impl<T> NewBase<T> {
         DisplayInBase { base: self, value }
     }
 }
+impl NewBase<char> {
+    fn from<N: Number>(&self, value: &str) -> N {
+        let digits = value.chars().map(|char| {
+            N::rhs_from_usize(
+                self.0
+                    .iter()
+                    .position(|other_char| *other_char == char)
+                    .unwrap(),
+            )
+        });
+        let base = N::rhs_from_usize(self.0.len());
+        let mut value = N::ZERO;
+
+        for digit in digits {
+            value *= base;
+            value += digit;
+        }
+
+        value
+    }
+}
+
 impl AddAssign<core::ops::RangeInclusive<char>> for NewBase<char> {
     fn add_assign(&mut self, rhs: core::ops::RangeInclusive<char>) {
         self.0.extend(rhs);
@@ -82,34 +113,7 @@ impl AddAssign<char> for NewBase<char> {
     }
 }
 
-trait Number: Sized + Clone + for<'a> DivAssign<&'a Self::Rhs> {
-    type Rhs: Clone;
-    fn rhs_from_usize(value: usize) -> Self::Rhs;
-
-    fn not_zero(&self) -> bool;
-    fn to_usize(&self) -> usize;
-
-    fn remainder(&self, rhs: &Self::Rhs) -> Self;
-}
-impl Number for u32 {
-    type Rhs = Self;
-    fn rhs_from_usize(value: usize) -> Self::Rhs {
-        value.strict_cast()
-    }
-
-    fn not_zero(&self) -> bool {
-        *self != 0
-    }
-    fn to_usize(&self) -> usize {
-        self.strict_cast()
-    }
-
-    fn remainder(&self, rhs: &Self::Rhs) -> Self {
-        self.rem(rhs)
-    }
-}
-
-fn base_alphabet<T: Number>(value: &str) -> T {
+fn base_alphabet<T>(value: &str) -> T {
     let base: [char; 26] =
         core::array::from_fn(|index| char::from_u32('a' as u32 + index as u32).unwrap());
     todo!()
